@@ -6,6 +6,8 @@ const Log = require('../Log');
 const HomieDevice = require('../homie/homieDevice');
 const HomieMQTTClient = require('../homie/HomieMQTTClient');
 const Color = require('../Color');
+//const { delay } = require('lodash');
+const delay = require('../../delay');
 
 const DEFAULT_TOPIC_ROOT = 'homie/{deviceId}';
 const DEFAULT_DEVICE_NAME = 'Homey';
@@ -51,7 +53,7 @@ class HomieDispatcher {
         this.system = system;
         this.messageQueue = messageQueue;
         this.topicsRegistry = topicsRegistry;
-        
+
         this._nodes = new Map();
         this._capabilityInstances = new Map();
     }
@@ -77,7 +79,7 @@ class HomieDispatcher {
         this.deviceId = parts.pop();
         this.topicRoot = parts.join('/');
     }
-    
+
     breakingChanges(settings, update) {
         const hash = JSON.stringify({
             protocol: settings.protocol,
@@ -100,7 +102,7 @@ class HomieDispatcher {
     init(settings, deviceChanges) {
 
         this.applySettings(settings);
-            
+
 
         // Breaking changes? => Start a new HomieDevice (& destroy current)
         if (this.breakingChanges(settings, true)) {
@@ -135,7 +137,7 @@ class HomieDispatcher {
         }
         return topic;
     }
-  
+
     _initHomieDevice() {
         if (this.homieDevice) {
             this._destroyHomieDevice();
@@ -202,7 +204,7 @@ class HomieDispatcher {
     }
 
     // Get all devices and add them
-    registerDevices() {
+    async registerDevices() {
         Log.info("register devices");
         const devices = this.deviceManager.devices;
         if (devices) {
@@ -210,6 +212,7 @@ class HomieDispatcher {
                 if (devices.hasOwnProperty(key)) {
                     this._registerDevice(devices[key]);
                 }
+                await delay(200);
             }
         }
     }
@@ -262,9 +265,9 @@ class HomieDispatcher {
         this.topicsRegistry.register(deviceId, topic);
         this.messageQueue.add(topic, value, { retain: retained !== false });
     }
-    
+
     _sendColor(device, property, { hsv, rgb }, retained) {
-        
+
         // Send color for property
         switch (this.colorFormat) {
             case 'hsv':
@@ -290,12 +293,12 @@ class HomieDispatcher {
             this._send(device.id, `${topic}/${c}`, channels[c], retained);
         }
     }
-    
+
     _registerDevice(device) {
         if (!device || !(device || {}).id) {
             Log.debug("invalid device");
             return;
-        } 
+        }
 
         if (!this.deviceManager.isDeviceEnabled(device.id)) {
             //Log.info('[SKIP] Device disabled');
@@ -320,7 +323,7 @@ class HomieDispatcher {
         NODE_COMMANDS.forEach(command => this.topicsRegistry.register(device.id, node.mqttTopic + '/' + command));
 
         const capabilities = device.capabilitiesObj;
-        
+
         if (capabilities) {
             let colorHandled = false;
             for (let key in capabilities) {
@@ -335,7 +338,7 @@ class HomieDispatcher {
                     const dataType = this._convertDataType(capability);
 
                     if (dataType && !(colorHandled && dataType === 'color')) {
-                        if(dataType === 'color') {
+                        if (dataType === 'color') {
                             colorHandled = true;
                         }
 
@@ -356,7 +359,7 @@ class HomieDispatcher {
                                     //Log.info('[SKIP] Device disabled');
                                     return;
                                 }
-                                
+
                                 this.setValue(device.id, capability, value, dataType)
                                     .catch(e => {
                                         Log.error("Failed to set capability value: " + name);
@@ -427,7 +430,7 @@ class HomieDispatcher {
             Log.debug("[Skip] Device Node not found");
             return;
         }
-        
+
         if (this.homieDevice) {
             this.homieDevice.remove(node);
         }
@@ -437,7 +440,7 @@ class HomieDispatcher {
     enableDevice(deviceId) {
         if (this._nodes.has(deviceId))
             return;
-        
+
         const device = this.deviceManager.devices[deviceId];
         if (device) {
             Log.info("Enable device: " + device.name);
@@ -590,7 +593,7 @@ class HomieDispatcher {
             //Log.info('[SKIP] Device disabled');
             return;
         }
-        
+
         Log.debug("Homie set value [" + node.name + "." + capability.id + "]: " + value);
 
         if (value === undefined) {
@@ -600,25 +603,25 @@ class HomieDispatcher {
 
         // Catch colors
         //if (this.colorFormat !== 'values') {
-            if (capability.id === 'light_hue' || capability.id === 'light_temperature') {
-                let device = await this.api.devices.getDevice({ id: deviceId });
-                if (device) {
-                    // HACK: fix for bulbs with temperature, but without hue color
-                    if(capability.id === 'light_temperature' && device.capabilitiesObj.hasOwnProperty('light_hue')) {
-                        return; // NOTE: Skip additional color value. The color dataType is already handled by 'light_hue'
-                    }
-                    if (this.broadcast) {
-                        const property = node.setProperty('color');
-                        if (property) {
-                            this._sendColor(device, property, this._formatColor(device.capabilitiesObj));
-                        }
+        if (capability.id === 'light_hue' || capability.id === 'light_temperature') {
+            let device = await this.api.devices.getDevice({ id: deviceId });
+            if (device) {
+                // HACK: fix for bulbs with temperature, but without hue color
+                if (capability.id === 'light_temperature' && device.capabilitiesObj.hasOwnProperty('light_hue')) {
+                    return; // NOTE: Skip additional color value. The color dataType is already handled by 'light_hue'
+                }
+                if (this.broadcast) {
+                    const property = node.setProperty('color');
+                    if (property) {
+                        this._sendColor(device, property, this._formatColor(device.capabilitiesObj));
                     }
                 }
-                return;
             }
-            if (capability.id === 'light_saturation' || capability.id === 'light_temperature') {
-                return; // NOTE: Skip additional color value. The color dataType is already handled by 'light_hue'
-            }
+            return;
+        }
+        if (capability.id === 'light_saturation' || capability.id === 'light_temperature') {
+            return; // NOTE: Skip additional color value. The color dataType is already handled by 'light_hue'
+        }
         //}
 
         try {
@@ -747,7 +750,7 @@ class HomieDispatcher {
         const hue = (capabilities['light_hue'] || {}).value || 0;
         const saturation = (capabilities['light_saturation'] || {}).value || 0;
         const temp = (capabilities['light_temperature'] || {}).value || 0;
-       
+
         const hsv = {
             h: round(hue * 360, 0, 360),
             s: round(saturation * 100, 0, 100),
@@ -835,7 +838,7 @@ class HomieDispatcher {
     }
 
     dispatchState() {
-        
+
         if (this.homieDevice) {
             Log.info("Dispatch device state");
             this.homieDevice.onConnect();

@@ -4,7 +4,7 @@ const delay = require('../delay');
 const Log = require('../Log');
 const Message = require('./Message');
 
-const DELAY = 0; // Wait 10 ms before sending next message to give Homey some breathing time
+const DELAY = 50; // Wait 10 ms before sending next message to give Homey some breathing time
 
 class MessageQueue {
     constructor(mqttClient) {
@@ -118,7 +118,7 @@ class MessageQueue {
             total: total
         };
     }
-    
+
     start() {
         this.running = true;
         this.process();

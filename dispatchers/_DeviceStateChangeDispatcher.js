@@ -3,6 +3,8 @@
 const Log = require('../Log');
 const Topic = require('../mqtt/Topic');
 const Message = require('../mqtt/Message');
+//const { delay } = require('lodash');
+const delay = require('../../delay');
 
 const COMMAND = 'state';
 
@@ -33,13 +35,14 @@ class DeviceStateChangeDispatcher {
         Log.debug('Devices registered');
     }
 
-    registerDevices() {
+    async registerDevices() {
         const devices = this.deviceManager.devices;
         if (devices) {
             for (let key in devices) {
                 if (devices.hasOwnProperty(key)) {
                     this.registerDevice(devices[key]);
                 }
+                await delay(200);
             }
         }
     }
@@ -60,10 +63,10 @@ class DeviceStateChangeDispatcher {
         const topic = new Topic(device, capability, COMMAND);
 
         if (typeof value === 'boolean') {
-          var onoff = value ? 'true' : 'false';
-          msg = new Message(topic, onoff);
+            var onoff = value ? 'true' : 'false';
+            msg = new Message(topic, onoff);
         } else {
-          msg = new Message(topic, value);
+            msg = new Message(topic, value);
         }
 
         this.mqttClient.publish(msg);

@@ -2,6 +2,8 @@
 
 const _ = require('lodash');
 const Log = require('../Log');
+//const { delay } = require('lodash');
+const delay = require('../../delay');
 const normalize = require('../normalize');
 const TopicsRegistry = require('../mqtt/TopicsRegistry');
 
@@ -313,7 +315,7 @@ class HomeAssistantDispatcher {
 
     async init(settings, deviceChanges) {
         if (!this.mqttClient) return;
-            
+
         try {
             this.enabled = settings.hass;
             if (!this.enabled) {
@@ -409,7 +411,7 @@ class HomeAssistantDispatcher {
     }
 
     // Get all devices and add them
-    registerDevices() {
+    async registerDevices() {
         Log.info("Home Assistant discovery: register devices");
         const devices = this.deviceManager.devices;
         if (devices) {
@@ -417,6 +419,7 @@ class HomeAssistantDispatcher {
                 if (devices.hasOwnProperty(key)) {
                     this._registerDevice(devices[key]);
                 }
+                await delay(200);
             }
         }
     }
@@ -430,12 +433,12 @@ class HomeAssistantDispatcher {
         if (!device || !(device || {}).id) {
             Log.debug("invalid device");
             return;
-        } 
+        }
 
         if (!device.capabilitiesObj || typeof device.capabilitiesObj !== 'object') {
             Log.debug("[skip] Device without capabilities");
             return;
-        } 
+        }
 
         if (!this.deviceManager.isDeviceEnabled(device.id)) {
             //Log.info('[SKIP] Device disabled');
@@ -556,7 +559,7 @@ class HomeAssistantDispatcher {
 
         // TODO: light_mode
         // TODO: RGB color setting
-        
+
         let topic = [device.name, 'config'].filter(x => x).join('/');
         if (this.normalize) {
             topic = normalize(topic);
@@ -671,13 +674,13 @@ class HomeAssistantDispatcher {
         // NOTE: If position_topic is set state_topic is ignored.
         if (!hasState || !capabilities.windowcoverings_state.setable) {
             const position = capabilities.hasOwnProperty('dim') ? 'dim'
-                            : capabilities.hasOwnProperty('windowcoverings_set') ? 'windowcoverings_set'
-                            : undefined;
+                : capabilities.hasOwnProperty('windowcoverings_set') ? 'windowcoverings_set'
+                    : undefined;
             if (position) {
                 const positonTopic = this.normalize ? normalize(position) : position;
                 payload.position_topic = `${stateTopic}/${positonTopic}`;
                 payload.position_template = '{{ value }}',
-                payload.position_closed = capabilities[position].min || 0;
+                    payload.position_closed = capabilities[position].min || 0;
                 payload.position_open = capabilities[position].max || 100;
                 if (capabilities[position].setable) {
                     payload.set_position_topic = `${stateTopic}/${positonTopic}/set`;
@@ -843,8 +846,8 @@ class HomeAssistantDispatcher {
     publish(deviceId, topic, payload, retained) {
         this.topicsRegistry.register(deviceId, topic);
         this._topics.register(deviceId, topic);
-        
-        this.messageQueue.add(topic, payload, { qos:0, retain: retained !== false });
+
+        this.messageQueue.add(topic, payload, { qos: 0, retain: retained !== false });
     }
 
     _unregisterDevice(device) {
@@ -857,7 +860,7 @@ class HomeAssistantDispatcher {
     enableDevice(deviceId) {
         //if (this._nodes.has(deviceId))
         //    return;
-        
+
         const device = this.deviceManager.devices[deviceId];
         if (device) {
             Log.info("Enable device: " + device.name);

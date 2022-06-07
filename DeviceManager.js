@@ -3,6 +3,8 @@
 const normalize = require('./normalize');
 const Log = require('./Log');
 const EventHandler = require('./EventHandler');
+//const { delay } = require('lodash');
+const delay = require('../../delay');
 
 class DeviceManager {
 
@@ -171,11 +173,11 @@ class DeviceManager {
 
     async _addDevice(device) {
         Log.info('New device found!');
-        
+
         if (device && device.id) {
             this.devices = this.devices || {};
             this.devices[device.id] = device;
-            
+
             await this.registerDevice(device);
             await this.onAdd.emit(device);
         }
@@ -191,7 +193,7 @@ class DeviceManager {
         if (deviceName && this.deviceNames) this.deviceNames.delete(deviceName);
         if (deviceTopic && this.deviceTopics) this.deviceTopics.delete(deviceTopic);
         if (this.devices) delete this.devices[id];
-        
+
         await this.onRemove.emit(id);
     }
 
@@ -230,7 +232,7 @@ class DeviceManager {
         return capabilities ? capabilities[capabilityId] : undefined;
     }
 
-    computeChanges(devices) {
+    async computeChanges(devices) {
         let changes = {
             enabled: [],
             disabled: [],
@@ -256,6 +258,7 @@ class DeviceManager {
                         changes.untouched.push(id);
                     }
                 }
+                await delay(200);
             }
         }
         return changes;
